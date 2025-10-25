@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>FasterBook Demo</title>
+  <style>
+    body { font-family: Arial; margin: 40px; background: #f5f5f5; }
+    h1 { text-align: center; color: #333; }
+    .container { display: flex; justify-content: center; gap: 50px; flex-wrap: wrap; }
+    .card { background: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); width: 300px; }
+    input, select, button { width: 100%; padding: 8px; margin: 8px 0; border-radius: 6px; border: 1px solid #ccc; }
+    button { background: #007bff; color: white; border: none; cursor: pointer; }
+    button:hover { background: #0056b3; }
+    #message { text-align: center; color: green; margin-top: 10px; }
+  </style>
+</head>
+<body>
+
+<h1>FasterBook Demo</h1>
+<div class="container">
+
+  <div class="card">
+    <h2>Food Booking</h2>
+    <input type="text" id="foodItem" placeholder="Food Item (Pizza, Burger)">
+    <input type="number" id="foodQty" placeholder="Quantity">
+    <button onclick="bookFood()">Book Food</button>
+  </div>
+
+  <div class="card">
+    <h2>Movie Tickets</h2>
+    <input type="text" id="movieName" placeholder="Movie Name">
+    <input type="number" id="ticketQty" placeholder="Number of Tickets">
+    <button onclick="bookMovie()">Book Tickets</button>
+  </div>
+
+</div>
+
+<div id="message"></div>
+
+<script>
+const API_URL = 'https://fasterbook.onrender.com';
+
+async function bookFood() {
+  const item = document.getElementById('foodItem').value;
+  const qty = document.getElementById('foodQty').value;
+  const res = await fetch(`${API_URL}/book-food`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ item, quantity: qty })
+  });
+  const data = await res.json();
+  document.getElementById('message').innerText = data.message;
+}
+
+async function bookMovie() {
+  const name = document.getElementById('movieName').value;
+  const qty = document.getElementById('ticketQty').value;
+  const res = await fetch(`${API_URL}/book-movie`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ movie: name, quantity: qty })
+  });
+  const data = await res.json();
+  document.getElementById('message').innerText = data.message;
+}
+</script>
+
+</body>
+</html>
