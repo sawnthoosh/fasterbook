@@ -1,6 +1,7 @@
 // Aura-Fake-Booking-Demo with UI
 // Save as server.js
 // Node.js + Express + beautiful frontend demo for food + movie booking API
+app.use(express.static('public'));
 
 const express = require('express');
 const cors = require('cors');
