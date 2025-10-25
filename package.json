@@ -1,0 +1,13 @@
+{
+  "name": "fasterbook-demo",
+  "version": "1.0.0",
+  "main": "Aura-fake-booking-demo.js",
+  "scripts": {
+    "start": "node Aura-fake-booking-demo.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "body-parser": "^1.20.2"
+  }
+}
