@@ -1,4 +1,5 @@
 // Aura-Fake-Booking-Demo with UI
+// Node.js + Express + beautiful frontend demo for food + movie booking API
 
 const express = require('express');
 const cors = require('cors');
@@ -116,12 +117,12 @@ app.get('/api/bookings', requireApiKey, (req, res) => {
 });
 
 // ======= FRONTEND =======
-// Optional: Update the HTML served on the root path for local testing
 app.get('/', (req, res) => {
-  res.type('html').send(`... your updated HTML here ...`);
+  res.type('html').send(`... your HTML here ...`);
 });
 
 app.listen(PORT, () => {
-  console.log(\`FasterBook Demo running at http://localhost:\${PORT}\`);
-  console.log(\`Demo API key: \${VALID_API_KEY}\`);
+  // FIX: Replace template literals with string concatenation to resolve SyntaxError
+  console.log('FasterBook Demo running at http://localhost:' + PORT); 
+  console.log('Demo API key: ' + VALID_API_KEY);
 });
