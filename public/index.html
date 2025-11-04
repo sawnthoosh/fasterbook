@@ -12,6 +12,10 @@
     button { background: #007bff; color: white; border: none; cursor: pointer; }
     button:hover { background: #0056b3; }
     #message { text-align: center; color: green; margin-top: 10px; }
+    .menu-section { margin-top: 40px; width: 100%; max-width: 700px; }
+    .menu-card { margin-bottom: 20px; }
+    .menu-list { list-style: none; padding: 0; }
+    .menu-list li { background: #e9ecef; margin-bottom: 5px; padding: 10px; border-radius: 4px; display: flex; justify-content: space-between; font-size: 0.9em;}
   </style>
 </head>
 <body>
@@ -21,48 +25,154 @@
 
   <div class="card">
     <h2>Food Booking</h2>
-    <input type="text" id="foodItem" placeholder="Food Item (Pizza, Burger)">
-    <input type="number" id="foodQty" placeholder="Quantity">
+    <input type="text" id="foodItem" placeholder="Item ID (e.g., biryani_chicken)">
+    <input type="number" id="foodQty" placeholder="Quantity (e.g., 2)">
+    <input type="text" id="foodAddress" placeholder="Delivery Address">
     <button onclick="bookFood()">Book Food</button>
   </div>
 
   <div class="card">
     <h2>Movie Tickets</h2>
-    <input type="text" id="movieName" placeholder="Movie Name">
-    <input type="number" id="ticketQty" placeholder="Number of Tickets">
+    <input type="text" id="movieId" placeholder="Movie ID (e.g., mov_101)">
+    <input type="text" id="movieSeats" placeholder="Seats (e.g., A1, A2)">
+    <input type="text" id="movieTime" placeholder="Showtime (ISO date/time)">
     <button onclick="bookMovie()">Book Tickets</button>
   </div>
 
 </div>
 
+<div class="container">
+    <div class="menu-section">
+        <h2>Available Menu (From API)</h2>
+        <div id="menuDisplay">Loading menu...</div>
+    </div>
+</div>
+
 <div id="message"></div>
 
 <script>
-const API_URL = 'https://fasterbook.onrender.com';
+const API_URL = 'https://fasterbook.onrender.com/api'; // Use /api as base
+const API_KEY = 'AURA-TEST-KEY-12345';
+
+async function callApi(endpoint, method = 'GET', body = null) {
+  const headers = { 
+    'Content-Type': 'application/json',
+    'x-api-key': API_KEY 
+  };
+
+  const config = {
+    method,
+    headers
+  };
+  
+  if (body) {
+    config.body = JSON.stringify(body);
+  }
+
+  const res = await fetch(`${API_URL}${endpoint}`, config);
+  const data = await res.json();
+  
+  if (!res.ok) {
+    document.getElementById('message').innerText = 'API Error: ' + (data.message || data.error || 'Unknown error');
+    return null;
+  }
+  return data;
+}
+
+// --- Booking Functions (Updated for structure) ---
 
 async function bookFood() {
-  const item = document.getElementById('foodItem').value;
-  const qty = document.getElementById('foodQty').value;
-  const res = await fetch(`${API_URL}/book-food`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ item, quantity: qty })
-  });
-  const data = await res.json();
-  document.getElementById('message').innerText = data.message;
+  const itemId = document.getElementById('foodItem').value;
+  const quantity = parseInt(document.getElementById('foodQty').value);
+  const address = document.getElementById('foodAddress').value;
+
+  if (!itemId || isNaN(quantity) || !address) {
+    document.getElementById('message').innerText = 'Please fill all food booking fields.';
+    return;
+  }
+
+  const body = { itemId, quantity, address };
+  const data = await callApi('/book-food', 'POST', body);
+  
+  if (data && data.success) {
+    document.getElementById('message').innerText = data.message + ' Booking ID: ' + data.bookingId;
+  }
 }
 
 async function bookMovie() {
-  const name = document.getElementById('movieName').value;
-  const qty = document.getElementById('ticketQty').value;
-  const res = await fetch(`${API_URL}/book-movie`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ movie: name, quantity: qty })
-  });
-  const data = await res.json();
-  document.getElementById('message').innerText = data.message;
+  const movieId = document.getElementById('movieId').value;
+  const seats = document.getElementById('movieSeats').value.split(',').map(s => s.trim());
+  const showTime = document.getElementById('movieTime').value;
+
+  if (!movieId || seats.length === 0 || !showTime) {
+    document.getElementById('message').innerText = 'Please fill all movie booking fields.';
+    return;
+  }
+
+  const body = { movieId, seats, showTime };
+  const data = await callApi('/book-movie', 'POST', body);
+  
+  if (data && data.success) {
+    document.getElementById('message').innerText = data.message + ' Booking ID: ' + data.bookingId;
+  }
 }
+
+
+// --- Menu Display Functions (New Functionality) ---
+
+function renderMenu(data) {
+  const menuDisplay = document.getElementById('menuDisplay');
+  if (!data.success) {
+    menuDisplay.innerHTML = `<p style="color:red;">Failed to load menu: ${data.message || data.error}</p>`;
+    return;
+  }
+
+  let html = '';
+  
+  // Food Menu
+  html += '<div class="menu-card">';
+  html += '<h3>🍔 Food Items</h3>';
+  html += '<ul class="menu-list">';
+  if (data.food && data.food.length > 0) {
+    data.food.forEach(item => {
+      html += `<li><span>${item.name}</span><span style="font-weight:bold; color: #007bff;">ID: ${item.id}</span></li>`;
+    });
+  } else {
+    html += '<li>No food items available.</li>';
+  }
+  html += '</ul></div>';
+
+  // Movie Menu
+  html += '<div class="menu-card">';
+  html += '<h3>🎬 Movies & Showtimes</h3>';
+  html += '<ul class="menu-list">';
+  if (data.movies && data.movies.length > 0) {
+    data.movies.forEach(movie => {
+      html += `<li style="flex-direction:column; align-items:flex-start; background: #e0e0e0;">
+                 <span style="font-weight:bold;">${movie.name}</span>
+                 <span style="font-size:0.8em; color:#555;">ID: ${movie.id}</span>
+                 <div style="font-size:0.8em; margin-top:5px;">
+                    <strong>Showtimes:</strong> ${movie.showTimes.map(t => new Date(t).toLocaleTimeString()).join(' | ')}
+                 </div>
+              </li>`;
+    });
+  } else {
+    html += '<li>No movies available.</li>';
+  }
+  html += '</ul></div>';
+
+  menuDisplay.innerHTML = html;
+}
+
+async function fetchAndDisplayMenu() {
+  const data = await callApi('/available');
+  if (data) {
+    renderMenu(data);
+  }
+}
+
+// Fetch menu on page load
+document.addEventListener('DOMContentLoaded', fetchAndDisplayMenu);
 </script>
 
 </body>
