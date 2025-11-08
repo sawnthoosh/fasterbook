@@ -44,7 +44,7 @@ const movieMenu = [
   { id: 'm3', title: 'Vikram', duration: 175, price: 170 }
 ];
 
-// User Bookings
+// User Bookings (Temporary - will be replaced by notifications)
 let userFoodBookings = [];
 let userMovieBookings = [];
 
@@ -58,7 +58,6 @@ app.post('/api/book/food', apiKeyAuth, (req, res) => {
     return res.status(400).json({ error: 'Missing required fields: itemId, quantity, address' });
   }
 
-  // **This is your location validation logic**
   if (!address.toLowerCase().includes('ongole')) {
     return res.status(400).json({ error: 'Sorry, we only deliver to the Ongole area.' });
   }
@@ -72,8 +71,11 @@ app.post('/api/book/food', apiKeyAuth, (req, res) => {
   }
 
   const totalPrice = item.price * quantity;
-  const booking = {
-    bookingId: `fb_${Date.now()}`,
+  const bookingId = `fb_${Date.now()}`;
+  
+  // This is the full response object AURA expects
+  const bookingResponse = {
+    bookingId: bookingId,
     itemId,
     itemName: item.name,
     quantity,
@@ -83,8 +85,37 @@ app.post('/api/book/food', apiKeyAuth, (req, res) => {
     estimatedDelivery: '30-45 minutes'
   };
 
-  userFoodBookings.push(booking);
-  res.status(201).json(booking);
+  userFoodBookings.push(bookingResponse); // Still useful for /bookings route
+
+  // --- ADD THIS NOTIFICATION BLOCK ---
+  try {
+    const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
+    if (webhookUrl) {
+      // fetch is built into Node.js (v18+), no install needed.
+      fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: `🎉 **New Food Order!** - ${bookingId}`,
+          embeds: [{
+            title: `Order: ${item.name} (x${quantity})`,
+            color: 5814783, // A nice green color
+            fields: [
+              { name: 'Customer Address', value: address, inline: false },
+              { name: 'Total Price', value: `₹${totalPrice}`, inline: true },
+              { name: 'Status', value: 'Confirmed', inline: true }
+            ],
+            timestamp: new Date().toISOString()
+          }]
+        })
+      });
+    }
+  } catch (notifyError) {
+    console.error("Failed to send Discord notification:", notifyError);
+  }
+  // --- END NOTIFICATION BLOCK ---
+
+  res.status(201).json(bookingResponse);
 });
 
 // --- Movie Booking ---
@@ -100,10 +131,11 @@ app.post('/api/book/movie', apiKeyAuth, (req, res) => {
     return res.status(404).json({ error: 'Movie not found' });
   }
 
-  // TODO: Add seat availability check
   const totalPrice = movie.price * seats.length;
-  const booking = {
-    bookingId: `mb_${Date.now()}`,
+  const bookingId = `mb_${Date.now()}`;
+
+  const bookingResponse = {
+    bookingId: bookingId,
     movieId,
     movieTitle: movie.title,
     seats,
@@ -111,8 +143,35 @@ app.post('/api/book/movie', apiKeyAuth, (req, res) => {
     status: 'Confirmed'
   };
 
-  userMovieBookings.push(booking);
-  res.status(201).json(booking);
+  userMovieBookings.push(bookingResponse); // Still useful for /bookings route
+
+  // --- ADD THIS NOTIFICATION BLOCK (for movies) ---
+  try {
+    const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
+    if (webhookUrl) {
+      fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: `🎟️ **New Movie Booking!** - ${bookingId}`,
+          embeds: [{
+            title: `Movie: ${movie.title}`,
+            color: 5814783, // A nice blue color
+            fields: [
+              { name: 'Seats', value: seats.join(', '), inline: true },
+              { name: 'Total Price', value: `₹${totalPrice}`, inline: true }
+            ],
+            timestamp: new Date().toISOString()
+          }]
+        })
+      });
+    }
+  } catch (notifyError) {
+    console.error("Failed to send Discord notification:", notifyError);
+  }
+  // --- END NOTIFICATION BLOCK ---
+
+  res.status(201).json(bookingResponse);
 });
 
 // --- Get All Bookings ---
@@ -123,8 +182,7 @@ app.get('/api/bookings', apiKeyAuth, (req, res) => {
   });
 });
 
-// --- *** NEW: GET FOOD MENU ROUTE *** ---
-// This is the new route you were missing
+// --- Get Food Menu Route ---
 app.get('/api/menu', apiKeyAuth, (req, res) => {
   try {
     const availableItems = foodMenu.filter(item => item.available);
@@ -137,7 +195,6 @@ app.get('/api/menu', apiKeyAuth, (req, res) => {
     res.status(500).json({ error: 'Failed to load menu' });
   }
 });
-// --- *** END NEW ROUTE *** ---
 
 
 // --- Root - Serves the HTML page ---
