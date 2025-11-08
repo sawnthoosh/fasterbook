@@ -1,128 +1,151 @@
-// Aura-Fake-Booking-Demo with UI
-// Node.js + Express + beautiful frontend demo for food + movie booking API
+// server.js (for your FasterBook project)
 
 const express = require('express');
-const cors = require('cors');
 const bodyParser = require('body-parser');
+const cors = require('cors');
+const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(express.static('public'));
-app.use(cors());
-app.use(bodyParser.json());
+// --- API Key Middleware ---
+const API_KEY = process.env.FASTERBOOK_API_KEY || 'your_default_key_here';
 
-// ======= CONFIG & MOCK DATA =======
-const VALID_API_KEY = 'AURA-TEST-KEY-12345';
-const bookings = { food: [], movies: [] };
-
-// CRITICAL MOCK DATA: AURA checks this first via /api/available
-const availableItems = {
-  success: true,
-  food: [
-    { id: 'pizza_margherita', name: 'Margherita Pizza' },
-    { id: 'biryani_chicken', name: 'Chicken Biryani' },
-    { id: 'burger_classic', name: 'Classic Burger' },
-    { id: 'taco_fish', name: 'Fish Taco' },
-    { id: 'pasta_alfredo', name: 'Fettuccine Alfredo' },
-  ],
-  movies: [
-    { id: 'mov_101', name: 'Space Adventures', showTimes: [new Date(Date.now() + 86400000).toISOString(), new Date(Date.now() + 172800000).toISOString()] },
-    { id: 'mov_303', name: 'Action Blast', showTimes: [new Date(Date.now() + 86400000 + 3600000).toISOString()] },
-  ]
+const apiKeyAuth = (req, res, next) => {
+  const userApiKey = req.get('x-api-key');
+  if (!userApiKey || userApiKey !== API_KEY) {
+    return res.status(401).json({ error: 'Unauthorized: Missing or invalid API key' });
+  }
+  next();
 };
 
-function requireApiKey(req, res, next) {
-  const key = req.header('x-api-key') || req.query.api_key;
-  if (!key) return res.status(401).json({ error: 'missing api key' });
-  if (key !== VALID_API_KEY) return res.status(403).json({ error: 'invalid api key' });
-  next();
-}
+app.use(bodyParser.json());
+app.use(cors());
 
-// ======= API ENDPOINTS =======
+// Serve static files from 'public' directory
+app.use(express.static(path.join(__dirname, 'public')));
 
-// 1. MISSING ENDPOINT: Provides the available items list to AURA
-app.get('/api/available', requireApiKey, (req, res) => {
-  setTimeout(() => {
-    res.json(availableItems);
-  }, 100);
-});
+// --- Mock Database ---
 
-// 2. BOOK FOOD ENDPOINT (Updated to return expected fields)
-app.post('/api/book-food', requireApiKey, (req, res) => {
-  const { itemId, quantity, address } = req.body || {};
-  if (!itemId || !quantity || !address) return res.status(400).json({ success: false, error: 'itemId, quantity and address required' });
-  
-  const itemDetails = availableItems.food.find(item => item.id === itemId);
-  if (!itemDetails) return res.status(404).json({ success: false, message: `Item ID '${itemId}' not found.` });
+// Food Menu
+const foodMenu = [
+  { id: 'f1', name: 'Chicken Biryani', price: 250, category: 'Main Course', available: true, description: 'Aromatic rice dish with spiced chicken.' },
+  { id: 'f2', name: 'Paneer Butter Masala', price: 220, category: 'Main Course', available: true, description: 'Creamy tomato gravy with soft paneer.' },
+  { id: 'f3', name: 'Gobi Manchurian', price: 180, category: 'Starters', available: true, description: 'Crispy cauliflower florets in a tangy sauce.' },
+  { id: 'f4', name: 'Butter Naan', price: 40, category: 'Breads', available: true, description: 'Soft leavened bread with butter.' },
+  { id: 'f5', name: 'Coke (250ml)', price: 20, category: 'Beverages', available: false, description: 'Chilled soft drink.' }
+];
+const foodCategories = ['Starters', 'Main Course', 'Breads', 'Beverages'];
 
-  const id = `FOOD-${Date.now()}`;
-  const price = (itemId === 'biryani_chicken' ? 14.99 : 12.99); // Specific Biryani price mock
-  const totalPrice = parseFloat((quantity * price).toFixed(2));
-  const deliveryTime = new Date(Date.now() + (45 * 60000)).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+// Movie Listings
+const movieMenu = [
+  { id: 'm1', title: 'Leo', duration: 164, price: 150 },
+  { id: 'm2', title: 'Jailer', duration: 168, price: 180 },
+  { id: 'm3', title: 'Vikram', duration: 175, price: 170 }
+];
 
-  const record = { id, itemId, quantity, address, status: 'confirmed', createdAt: new Date().toISOString(), totalPrice, estimatedDelivery: deliveryTime };
-  bookings.food.push(record);
-  
-  res.json({ 
-    success: true, 
-    bookingId: id,
+// User Bookings
+let userFoodBookings = [];
+let userMovieBookings = [];
+
+// --- API Routes ---
+
+// --- Food Booking ---
+app.post('/api/book/food', apiKeyAuth, (req, res) => {
+  const { itemId, quantity, address } = req.body;
+
+  if (!itemId || !quantity || !address) {
+    return res.status(400).json({ error: 'Missing required fields: itemId, quantity, address' });
+  }
+
+  // **This is your location validation logic**
+  if (!address.toLowerCase().includes('ongole')) {
+    return res.status(400).json({ error: 'Sorry, we only deliver to the Ongole area.' });
+  }
+
+  const item = foodMenu.find(i => i.id === itemId);
+  if (!item) {
+    return res.status(404).json({ error: 'Item not found' });
+  }
+  if (!item.available) {
+    return res.status(400).json({ error: 'Sorry, this item is currently unavailable' });
+  }
+
+  const totalPrice = item.price * quantity;
+  const booking = {
+    bookingId: `fb_${Date.now()}`,
     itemId,
+    itemName: item.name,
     quantity,
+    totalPrice,
     address,
-    totalPrice,
-    estimatedDelivery: deliveryTime,
-    message: `${itemDetails.name} order placed successfully! Delivery by ${deliveryTime}.`
-  });
+    status: 'Confirmed',
+    estimatedDelivery: '30-45 minutes'
+  };
+
+  userFoodBookings.push(booking);
+  res.status(201).json(booking);
 });
 
-// 3. BOOK MOVIE ENDPOINT (Updated to return expected fields)
-app.post('/api/book-movie', requireApiKey, (req, res) => {
-  const { movieId, seats, showTime } = req.body || {};
-  if (!movieId || !Array.isArray(seats) || seats.length === 0 || !showTime) return res.status(400).json({ success: false, error: 'movieId, seats, showTime required' });
-  
-  const movieDetails = availableItems.movies.find(movie => movie.id === movieId);
-  if (!movieDetails) return res.status(404).json({ success: false, message: `Movie ID '${movieId}' not found.` });
+// --- Movie Booking ---
+app.post('/api/book/movie', apiKeyAuth, (req, res) => {
+  const { movieId, seats } = req.body;
 
-  const id = `MOV-${Date.now()}`;
-  const totalPrice = parseFloat((seats.length * 15.00).toFixed(2));
+  if (!movieId || !seats || !Array.isArray(seats) || seats.length === 0) {
+    return res.status(400).json({ error: 'Missing required fields: movieId and an array of seats' });
+  }
 
-  const record = { id, movieId, seats, showTime, status: 'tickets_issued', createdAt: new Date().toISOString(), totalPrice, theater: 'Grand Hall' };
-  bookings.movies.push(record);
+  const movie = movieMenu.find(m => m.id === movieId);
+  if (!movie) {
+    return res.status(404).json({ error: 'Movie not found' });
+  }
 
-  res.json({ 
-    success: true, 
-    bookingId: id,
+  // TODO: Add seat availability check
+  const totalPrice = movie.price * seats.length;
+  const booking = {
+    bookingId: `mb_${Date.now()}`,
     movieId,
+    movieTitle: movie.title,
     seats,
-    showTime,
     totalPrice,
-    theater: 'Grand Cinema Hall 5',
-    message: `${movieDetails.name} tickets booked successfully!`
+    status: 'Confirmed'
+  };
+
+  userMovieBookings.push(booking);
+  res.status(201).json(booking);
+});
+
+// --- Get All Bookings ---
+app.get('/api/bookings', apiKeyAuth, (req, res) => {
+  res.status(200).json({
+    foodBookings: userFoodBookings,
+    movieBookings: userMovieBookings
   });
 });
 
-// 4. GET BOOKINGS ENDPOINT (Updated to combine and format data)
-app.get('/api/bookings', requireApiKey, (req, res) => {
-  const allBookings = [
-    ...bookings.food.map(b => ({ id: b.id, type: 'food', details: b, timestamp: b.createdAt })),
-    ...bookings.movies.map(b => ({ id: b.id, type: 'movie', details: b, timestamp: b.createdAt }))
-  ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-
-  res.json({
-    success: true,
-    bookings: allBookings,
-    message: `${allBookings.length} bookings found.`
-  });
+// --- *** NEW: GET FOOD MENU ROUTE *** ---
+// This is the new route you were missing
+app.get('/api/menu', apiKeyAuth, (req, res) => {
+  try {
+    const availableItems = foodMenu.filter(item => item.available);
+    
+    res.status(200).json({
+      items: availableItems,
+      categories: foodCategories
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to load menu' });
+  }
 });
+// --- *** END NEW ROUTE *** ---
 
-// ======= FRONTEND =======
+
+// --- Root - Serves the HTML page ---
 app.get('/', (req, res) => {
-  res.type('html').send(`... your HTML here ...`);
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+// --- Start Server ---
 app.listen(PORT, () => {
-  // FIX: Replace template literals with string concatenation to resolve SyntaxError
-  console.log('FasterBook Demo running at http://localhost:' + PORT); 
-  console.log('Demo API key: ' + VALID_API_KEY);
+  console.log(`FasterBook server running on port ${PORT}`);
 });
